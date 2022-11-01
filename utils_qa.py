@@ -241,7 +241,6 @@ def postprocess_qa_predictions(
         logger.info(f"Saving predictions to {prediction_file}.")
         # with open(prediction_file, "w", encoding="utf-8") as writer:
         #     writer.write(json.dumps(all_predictions, indent=4, ensure_ascii=False) + "\n")
-        print(all_predictions.items())
         for k, v in all_predictions.items():
             csv_writer.writerow([k, v])
         prediction_file.close()

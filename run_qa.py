@@ -123,7 +123,7 @@ def parse_args():
     parser.add_argument(
         "--max_seq_length",
         type=int,
-        default=512,
+        default=384,
         help=(
             "The maximum total input sequence length after tokenization. Sequences longer than this will be truncated,"
             " sequences shorter will be padded if `--pad_to_max_lengh` is passed."
@@ -160,35 +160,38 @@ def parse_args():
     parser.add_argument(
         "--per_device_train_batch_size",
         type=int,
-        default=8,
+        default=1,
         help="Batch size (per device) for the training dataloader.",
     )
     parser.add_argument(
         "--per_device_eval_batch_size",
         type=int,
-        default=8,
+        default=1,
         help="Batch size (per device) for the evaluation dataloader.",
     )
     parser.add_argument(
         "--learning_rate",
         type=float,
-        default=5e-5,
+        default=3e-5,
         help="Initial learning rate (after the potential warmup period) to use.",
     )
     parser.add_argument("--weight_decay", type=float, default=0.0, help="Weight decay to use.")
-    parser.add_argument("--num_train_epochs", type=int, default=3, help="Total number of training epochs to perform.")
+    parser.add_argument("--num_train_epochs", type=int, default=1, help="Total number of training epochs to perform.")
     parser.add_argument(
         "--max_train_steps",
         type=int,
         default=None,
         help="Total number of training steps to perform. If provided, overrides num_train_epochs.",
     )
+    # 如果batch_size=2，這裡設8，則我們會做完一組16個instances在算loss(簡單來講就是變成batch_size=16，但記憶體不夠沒辦法加速)
     parser.add_argument(
         "--gradient_accumulation_steps",
         type=int,
-        default=1,
+        default=2,
         help="Number of updates steps to accumulate before performing a backward/update pass.",
     )
+    # hugging-face的lr是會變動的，根據choices不同有不同變化曲線。
+    # 初始值為0，用num_warmup_steps決定走幾步會到我們前面設定的learn rate參數，若此值為0則代表初始值就是我們設定的learn rate
     parser.add_argument(
         "--lr_scheduler_type",
         type=SchedulerType,
@@ -210,7 +213,7 @@ def parse_args():
     parser.add_argument(
         "--n_best_size",
         type=int,
-        default=10,
+        default=20,
         help="The total number of n-best predictions to generate when looking for an answer.",
     )
     parser.add_argument(
@@ -231,7 +234,7 @@ def parse_args():
     parser.add_argument(
         "--max_answer_length",
         type=int,
-        default=20,
+        default=30,
         help=(
             "The maximum length of an answer that can be generated. This is needed because the start "
             "and end predictions are not conditioned on one another."
@@ -331,6 +334,7 @@ def parse_args():
 
 
 def main():
+    # =====================應該在設定seed，logger跟accelerator========================
     args = parse_args()
 
     # Sending telemetry. Tracking the example usage helps us better allocate resources to maintain them. The
@@ -408,7 +412,7 @@ def main():
             with open(args.train_file, encoding='utf-8') as jsonfile2:
                 train_data = json.load(jsonfile2)
             data_for_json = []
-            for data in train_data[:1000]:
+            for data in train_data:
                 answer = {"text":[data['answer']['text']], "answer_start":[data['answer']['start']]}
                 t = data['paragraphs'].index(data['relevant'])
                 artical_num = data['paragraphs'][t]
@@ -424,7 +428,7 @@ def main():
             with open(args.validation_file, encoding='utf-8') as jsonfile2:
                 valid_data = json.load(jsonfile2)
             data_for_json = []
-            for data in valid_data[:1000]:
+            for data in valid_data:
                 answer = {"text":[data['answer']['text']], "answer_start":[data['answer']['start']]}
                 t = data['paragraphs'].index(data['relevant'])
                 artical_num = data['paragraphs'][t]
@@ -453,6 +457,8 @@ def main():
             data_files["test"] = 'test_qa.json'
 
         raw_datasets = load_dataset('./dataset', data_files=data_files)
+
+    # ======================載入模型、設置，可直接載入BERT，或者載入fine-tune完的模型，另外也讀入tokenizer=================
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading_datasets.html.
 
@@ -489,6 +495,7 @@ def main():
         logger.info("Training new model from scratch")
         model = AutoModelForQuestionAnswering.from_config(config)
 
+    # =================準備開始資料前處理====================
     # Preprocessing the datasets.
     # Preprocessing is slighlty different for training and evaluation.
 
@@ -677,13 +684,12 @@ def main():
             desc="Running tokenizer on validation dataset",
         )
 
-    print("前處理完成")
-    #====================到這邊為止算是train跟valid兩個dataset前處理告一段落=======================
-
     if args.max_eval_samples is not None:
         # During Feature creation dataset samples might increase, we will select required samples again
         eval_dataset = eval_dataset.select(range(args.max_eval_samples))
-
+    print("前處理完成")
+    #====================到這邊為止算是train跟valid兩個dataset前處理告一段落=======================
+    #====================如果do_predict=True則我們會繼續處理test dataset==========================
     if args.do_predict:
         if "test" not in raw_datasets:
             raise ValueError("--do_predict requires a test dataset")
@@ -709,6 +715,7 @@ def main():
     for index in random.sample(range(len(train_dataset)), 3):
         logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
 
+    #========================建立collate_fn(在裡面會做padding)，接著用dataloader讀入dataset====================
     # DataLoaders creation:
     if args.pad_to_max_length:
         # If padding was already done ot max length, we use the default data collator that will just convert everything
@@ -735,6 +742,7 @@ def main():
             predict_dataset_for_model, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size
         )
 
+    # 這個function主要是預測完之後把數值轉回字串，並且寫檔案。
     # Post-processing:
     def post_processing_function(examples, features, predictions, stage="eval"):
         # Post-processing: we match the start logits and end logits to answers in the original context.
@@ -794,6 +802,7 @@ def main():
 
         return logits_concat
 
+    # ===========================這裡有點看不懂===========================
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
     no_decay = ["bias", "LayerNorm.weight"]
@@ -848,7 +857,7 @@ def main():
         experiment_config["lr_scheduler_type"] = experiment_config["lr_scheduler_type"].value
         accelerator.init_trackers("qa_no_trainer", experiment_config)
 
-    # Train!
+    # ========================Train!=====================
     total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
 
     logger.info("***** Running training *****")
@@ -942,7 +951,7 @@ def main():
                     commit_message=f"Training in progress epoch {epoch}", blocking=False, auto_lfs_prune=True
                 )
 
-    # Evaluation
+    # =================Evaluation==================
     logger.info("***** Running Evaluation *****")
     logger.info(f"  Num examples = {len(eval_dataset)}")
     logger.info(f"  Batch size = {args.per_device_eval_batch_size}")
@@ -977,9 +986,12 @@ def main():
 
     outputs_numpy = (start_logits_concat, end_logits_concat)
     prediction = post_processing_function(eval_examples, eval_dataset, outputs_numpy)
+    print(prediction.predictions[0])
+    print(prediction.label_ids[0])
     eval_metric = metric.compute(predictions=prediction.predictions, references=prediction.label_ids)
     logger.info(f"Evaluation metrics: {eval_metric}")
 
+    # =======================test!======================
     if args.do_predict:
         logger.info("***** Running Prediction *****")
         logger.info(f"  Num examples = {len(predict_dataset)}")
@@ -1014,34 +1026,34 @@ def main():
 
         outputs_numpy = (start_logits_concat, end_logits_concat)
         prediction = post_processing_function(predict_examples, predict_dataset, outputs_numpy)
-        predict_metric = metric.compute(predictions=prediction.predictions, references=prediction.label_ids)
-        logger.info(f"Predict metrics: {predict_metric}")
+        # predict_metric = metric.compute(predictions=prediction.predictions, references=prediction.label_ids)
+        # logger.info(f"Predict metrics: {predict_metric}")
 
-    if args.with_tracking:
-        log = {
-            "squad_v2" if args.version_2_with_negative else "squad": eval_metric,
-            "train_loss": total_loss.item() / len(train_dataloader),
-            "epoch": epoch,
-            "step": completed_steps,
-        }
-    if args.do_predict:
-        log["squad_v2_predict" if args.version_2_with_negative else "squad_predict"] = predict_metric
+    # if args.with_tracking:
+    #     log = {
+    #         "squad_v2" if args.version_2_with_negative else "squad": eval_metric,
+    #         "train_loss": total_loss.item() / len(train_dataloader),
+    #         "epoch": epoch,
+    #         "step": completed_steps,
+    #     }
+    # if args.do_predict:
+    #     log["squad_v2_predict" if args.version_2_with_negative else "squad_predict"] = predict_metric
 
-        accelerator.log(log, step=completed_steps)
+    #     accelerator.log(log, step=completed_steps)
 
-    if args.output_dir is not None:
-        accelerator.wait_for_everyone()
-        unwrapped_model = accelerator.unwrap_model(model)
-        unwrapped_model.save_pretrained(
-            args.output_dir, is_main_process=accelerator.is_main_process, save_function=accelerator.save
-        )
-        if accelerator.is_main_process:
-            tokenizer.save_pretrained(args.output_dir)
-            if args.push_to_hub:
-                repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
+    # if args.output_dir is not None:
+    #     accelerator.wait_for_everyone()
+    #     unwrapped_model = accelerator.unwrap_model(model)
+    #     unwrapped_model.save_pretrained(
+    #         args.output_dir, is_main_process=accelerator.is_main_process, save_function=accelerator.save
+    #     )
+    #     if accelerator.is_main_process:
+    #         tokenizer.save_pretrained(args.output_dir)
+    #         if args.push_to_hub:
+    #             repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
 
-            logger.info(json.dumps(eval_metric, indent=4, ensure_ascii=False))
-            save_prefixed_metrics(eval_metric, args.output_dir)
+    #         logger.info(json.dumps(eval_metric, indent=4, ensure_ascii=False))
+    #         save_prefixed_metrics(eval_metric, args.output_dir)
 
 
 if __name__ == "__main__":

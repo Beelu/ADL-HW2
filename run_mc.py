@@ -91,7 +91,7 @@ def parse_args():
     parser.add_argument(
         "--max_length",
         type=int,
-        default=128,
+        default=384,
         help=(
             "The maximum total input sequence length after tokenization. Sequences longer than this will be truncated,"
             " sequences shorter will be padded if `--pad_to_max_lengh` is passed."
@@ -140,11 +140,11 @@ def parse_args():
     parser.add_argument(
         "--learning_rate",
         type=float,
-        default=5e-5,
+        default=3e-5,
         help="Initial learning rate (after the potential warmup period) to use.",
     )
     parser.add_argument("--weight_decay", type=float, default=0.0, help="Weight decay to use.")
-    parser.add_argument("--num_train_epochs", type=int, default=3, help="Total number of training epochs to perform.")
+    parser.add_argument("--num_train_epochs", type=int, default=1, help="Total number of training epochs to perform.")
     parser.add_argument(
         "--max_train_steps",
         type=int,
@@ -154,7 +154,7 @@ def parse_args():
     parser.add_argument(
         "--gradient_accumulation_steps",
         type=int,
-        default=1,
+        default=2,
         help="Number of updates steps to accumulate before performing a backward/update pass.",
     )
     parser.add_argument(
@@ -355,7 +355,7 @@ def main():
             csv_writer = csv.writer(data_file)    
             header = ['id', 'sent1', 'ending0', 'ending1', 'ending2', 'ending3', 'label']
             csv_writer.writerow(header)
-            for data in train_data[:1000]:
+            for data in train_data:
                 data_values = [data['id'], data['question'], data['paragraphs'][0], data['paragraphs'][1], data['paragraphs'][2], data['paragraphs'][3], data['paragraphs'].index(data['relevant'])]
                 csv_writer.writerow(data_values)
             data_file.close()
@@ -369,7 +369,7 @@ def main():
             csv_writer = csv.writer(data_file)
             header = ['id', 'sent1', 'ending0', 'ending1', 'ending2', 'ending3', 'label']
             csv_writer.writerow(header)
-            for data in validation_data[:1000]:
+            for data in validation_data:
                 data_values = [data['id'], data['question'], data['paragraphs'][0], data['paragraphs'][1], data['paragraphs'][2], data['paragraphs'][3], data['paragraphs'].index(data['relevant'])]
                 csv_writer.writerow(data_values)
             data_file.close()
