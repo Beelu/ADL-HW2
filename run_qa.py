@@ -113,7 +113,7 @@ def parse_args():
     parser.add_argument(
         "--preprocessing_num_workers", type=int, default=1, help="A csv or a json file containing the training data."
     )
-    parser.add_argument("--do_predict", default=True, action="store_true", help="To do prediction on the question answering model")
+    parser.add_argument("--do_predict", action="store_true", help="To do prediction on the question answering model")
     parser.add_argument(
         "--validation_file", type=str, default="data/valid.json", help="A csv or a json file containing the validation data."
     )
@@ -202,7 +202,7 @@ def parse_args():
     parser.add_argument(
         "--num_warmup_steps", type=int, default=0, help="Number of steps for the warmup in the lr scheduler."
     )
-    parser.add_argument("--output_dir", type=str, default=None, help="Where to store the final model.")
+    parser.add_argument("--output_dir", type=str, default="./qa", help="Where to store the final model.")
     parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
     parser.add_argument(
         "--doc_stride",
@@ -1041,19 +1041,19 @@ def main():
 
     #     accelerator.log(log, step=completed_steps)
 
-    # if args.output_dir is not None:
-    #     accelerator.wait_for_everyone()
-    #     unwrapped_model = accelerator.unwrap_model(model)
-    #     unwrapped_model.save_pretrained(
-    #         args.output_dir, is_main_process=accelerator.is_main_process, save_function=accelerator.save
-    #     )
-    #     if accelerator.is_main_process:
-    #         tokenizer.save_pretrained(args.output_dir)
-    #         if args.push_to_hub:
-    #             repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
+    if args.output_dir is not None:
+        accelerator.wait_for_everyone()
+        unwrapped_model = accelerator.unwrap_model(model)
+        unwrapped_model.save_pretrained(
+            args.output_dir, is_main_process=accelerator.is_main_process, save_function=accelerator.save
+        )
+        if accelerator.is_main_process:
+            tokenizer.save_pretrained(args.output_dir)
+            if args.push_to_hub:
+                repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
 
-    #         logger.info(json.dumps(eval_metric, indent=4, ensure_ascii=False))
-    #         save_prefixed_metrics(eval_metric, args.output_dir)
+            logger.info(json.dumps(eval_metric, indent=4, ensure_ascii=False))
+            save_prefixed_metrics(eval_metric, args.output_dir)
 
 
 if __name__ == "__main__":

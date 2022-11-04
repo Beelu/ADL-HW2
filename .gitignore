@@ -2,3 +2,5 @@ mc/
 qa/
 dataset/
 *.csv
+pred_article.json
+report.pdf

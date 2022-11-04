@@ -91,7 +91,7 @@ def parse_args():
     parser.add_argument(
         "--max_length",
         type=int,
-        default=128,
+        default=384,
         help=(
             "The maximum total input sequence length after tokenization. Sequences longer than this will be truncated,"
             " sequences shorter will be padded if `--pad_to_max_lengh` is passed."
@@ -112,13 +112,13 @@ def parse_args():
     parser.add_argument(
         "--config_name",
         type=str,
-        default=None,
+        default="./mc",
         help="Pretrained config name or path if not the same as model_name",
     )
     parser.add_argument(
         "--tokenizer_name",
         type=str,
-        default=None,
+        default="./mc",
         help="Pretrained tokenizer name or path if not the same as model_name",
     )
     parser.add_argument(

@@ -220,37 +220,12 @@ def postprocess_qa_predictions(
 
     # If we have an output_dir, let's save all those dicts.
     if output_dir is not None:
-        if not os.path.isdir(output_dir):
-            raise EnvironmentError(f"{output_dir} is not a directory.")
-
-        # prediction_file = os.path.join(
-        #     output_dir, "predictions.json" if prefix is None else f"{prefix}_predictions.json"
-        # )
-        prediction_file = open('./answer_prediction.csv', 'w', newline='', encoding='utf-8-sig')
-        csv_writer = csv.writer(prediction_file)
-        header = ['id', 'answer']
-        csv_writer.writerow(header)
-        # nbest_file = os.path.join(
-        #     output_dir, "nbest_predictions.json" if prefix is None else f"{prefix}_nbest_predictions.json"
-        # )
-        # if version_2_with_negative:
-        #     null_odds_file = os.path.join(
-        #         output_dir, "null_odds.json" if prefix is None else f"{prefix}_null_odds.json"
-        #     )
-
-        logger.info(f"Saving predictions to {prediction_file}.")
-        # with open(prediction_file, "w", encoding="utf-8") as writer:
-        #     writer.write(json.dumps(all_predictions, indent=4, ensure_ascii=False) + "\n")
-        for k, v in all_predictions.items():
-            csv_writer.writerow([k, v])
-        prediction_file.close()
-        # logger.info(f"Saving nbest_preds to {nbest_file}.")
-        # with open(nbest_file, "w", encoding="utf-8") as writer:
-        #     writer.write(json.dumps(all_nbest_json, indent=4, ensure_ascii=False) + "\n")
-        # if version_2_with_negative:
-        #     logger.info(f"Saving null_odds to {null_odds_file}.")
-        #     with open(null_odds_file, "w", encoding="utf-8") as writer:
-        #         writer.write(json.dumps(scores_diff_json, indent=4, ensure_ascii=False) + "\n")
+        with open(output_dir, 'w', newline='', encoding='utf-8-sig') as csvfile:
+            writer = csv.writer(csvfile)
+            header = ['id', 'answer']
+            writer.writerow(header)
+            for k, v in all_predictions.items():
+                writer.writerow([k, v])
 
     return all_predictions
 

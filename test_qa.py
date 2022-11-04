@@ -373,8 +373,6 @@ def main():
                     gitignore.write("step_*\n")
                 if "epoch_*" not in gitignore:
                     gitignore.write("epoch_*\n")
-        elif args.output_dir is not None:
-            os.makedirs(args.output_dir, exist_ok=True)
     accelerator.wait_for_everyone()
 
     #==========================================這邊開始先做將資料轉換成類似squad的形式==============================================
@@ -639,191 +637,14 @@ def main():
 
         return logits_concat
 
-    # Optimizer
-    # Split weights in two groups, one with weight decay and the other not.
-    # no_decay = ["bias", "LayerNorm.weight"]
-    # optimizer_grouped_parameters = [
-    #     {
-    #         "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
-    #         "weight_decay": args.weight_decay,
-    #     },
-    #     {
-    #         "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
-    #         "weight_decay": 0.0,
-    #     },
-    # ]
-    # optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
 
-    # Scheduler and math around the number of training steps.
-    # overrode_max_train_steps = False
-    # num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
-    # if args.max_train_steps is None:
-    #     args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
-    #     overrode_max_train_steps = True
-
-    # lr_scheduler = get_scheduler(
-    #     name=args.lr_scheduler_type,
-    #     optimizer=optimizer,
-    #     num_warmup_steps=args.num_warmup_steps * args.gradient_accumulation_steps,
-    #     num_training_steps=args.max_train_steps * args.gradient_accumulation_steps,
-    # )
 
     # Prepare everything with our `accelerator`.
     model, predict_dataloader= accelerator.prepare(
         model, predict_dataloader
     )
 
-    # # We need to recalculate our total training steps as the size of the training dataloader may have changed.
-    # num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
-    # if overrode_max_train_steps:
-    #     args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
-    # # Afterwards we recalculate our number of training epochs
-    # args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
 
-    # Figure out how many steps we should save the Accelerator states
-    # checkpointing_steps = args.checkpointing_steps
-    # if checkpointing_steps is not None and checkpointing_steps.isdigit():
-    #     checkpointing_steps = int(checkpointing_steps)
-
-    # We need to initialize the trackers we use, and also store our configuration.
-    # The trackers initializes automatically on the main process.
-    # if args.with_tracking:
-    #     experiment_config = vars(args)
-    #     # TensorBoard cannot log Enums, need the raw value
-    #     experiment_config["lr_scheduler_type"] = experiment_config["lr_scheduler_type"].value
-    #     accelerator.init_trackers("qa_no_trainer", experiment_config)
-
-    # Train!
-    # total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
-
-    # logger.info("***** Running training *****")
-    # logger.info(f"  Num examples = {len(train_dataset)}")
-    # logger.info(f"  Num Epochs = {args.num_train_epochs}")
-    # logger.info(f"  Instantaneous batch size per device = {args.per_device_train_batch_size}")
-    # logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
-    # logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
-    # logger.info(f"  Total optimization steps = {args.max_train_steps}")
-
-    # # Only show the progress bar once on each machine.
-    # progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
-    # completed_steps = 0
-    # starting_epoch = 0
-
-    # # Potentially load in the weights and states from a previous save
-    # if args.resume_from_checkpoint:
-    #     if args.resume_from_checkpoint is not None or args.resume_from_checkpoint != "":
-    #         accelerator.print(f"Resumed from checkpoint: {args.resume_from_checkpoint}")
-    #         accelerator.load_state(args.resume_from_checkpoint)
-    #         path = os.path.basename(args.resume_from_checkpoint)
-    #     else:
-    #         # Get the most recent checkpoint
-    #         dirs = [f.name for f in os.scandir(os.getcwd()) if f.is_dir()]
-    #         dirs.sort(key=os.path.getctime)
-    #         path = dirs[-1]  # Sorts folders by date modified, most recent checkpoint is the last
-    #     # Extract `epoch_{i}` or `step_{i}`
-    #     training_difference = os.path.splitext(path)[0]
-
-    #     if "epoch" in training_difference:
-    #         starting_epoch = int(training_difference.replace("epoch_", "")) + 1
-    #         resume_step = None
-    #     else:
-    #         resume_step = int(training_difference.replace("step_", ""))
-    #         starting_epoch = resume_step // len(train_dataloader)
-    #         resume_step -= starting_epoch * len(train_dataloader)
-
-    # for epoch in range(starting_epoch, args.num_train_epochs):
-    #     model.train()
-    #     if args.with_tracking:
-    #         total_loss = 0
-    #     for step, batch in enumerate(train_dataloader):
-    #         # We need to skip steps until we reach the resumed step
-    #         if args.resume_from_checkpoint and epoch == starting_epoch:
-    #             if resume_step is not None and step < resume_step:
-    #                 completed_steps += 1
-    #                 continue
-
-    #         with accelerator.accumulate(model):
-    #             outputs = model(**batch)
-    #             loss = outputs.loss
-    #             # We keep track of the loss at each epoch
-    #             if args.with_tracking:
-    #                 total_loss += loss.detach().float()
-
-    #             accelerator.backward(loss)
-    #             optimizer.step()
-    #             lr_scheduler.step()
-    #             optimizer.zero_grad()
-
-    #         # Checks if the accelerator has performed an optimization step behind the scenes
-    #         if accelerator.sync_gradients:
-    #             progress_bar.update(1)
-    #             completed_steps += 1
-
-    #         if isinstance(checkpointing_steps, int):
-    #             if completed_steps % checkpointing_steps == 0:
-    #                 output_dir = f"step_{completed_steps }"
-    #                 if args.output_dir is not None:
-    #                     output_dir = os.path.join(args.output_dir, output_dir)
-    #                 accelerator.save_state(output_dir)
-
-    #         if completed_steps >= args.max_train_steps:
-    #             break
-
-    #     if args.checkpointing_steps == "epoch":
-    #         output_dir = f"epoch_{epoch}"
-    #         if args.output_dir is not None:
-    #             output_dir = os.path.join(args.output_dir, output_dir)
-    #         accelerator.save_state(output_dir)
-
-    #     if args.push_to_hub and epoch < args.num_train_epochs - 1:
-    #         accelerator.wait_for_everyone()
-    #         unwrapped_model = accelerator.unwrap_model(model)
-    #         unwrapped_model.save_pretrained(
-    #             args.output_dir, is_main_process=accelerator.is_main_process, save_function=accelerator.save
-    #         )
-    #         if accelerator.is_main_process:
-    #             tokenizer.save_pretrained(args.output_dir)
-    #             repo.push_to_hub(
-    #                 commit_message=f"Training in progress epoch {epoch}", blocking=False, auto_lfs_prune=True
-    #             )
-
-    # # Evaluation
-    # logger.info("***** Running Evaluation *****")
-    # logger.info(f"  Num examples = {len(test_dataset)}")
-    # logger.info(f"  Batch size = {args.per_device_eval_batch_size}")
-
-    # all_start_logits = []
-    # all_end_logits = []
-
-    # model.eval()
-
-    # for step, batch in enumerate(test_dataloader):
-    #     with torch.no_grad():
-    #         outputs = model(**batch)
-    #         start_logits = outputs.start_logits
-    #         end_logits = outputs.end_logits
-
-    #         if not args.pad_to_max_length:  # necessary to pad predictions and labels for being gathered
-    #             start_logits = accelerator.pad_across_processes(start_logits, dim=1, pad_index=-100)
-    #             end_logits = accelerator.pad_across_processes(end_logits, dim=1, pad_index=-100)
-
-    #         all_start_logits.append(accelerator.gather_for_metrics(start_logits).cpu().numpy())
-    #         all_end_logits.append(accelerator.gather_for_metrics(end_logits).cpu().numpy())
-
-    # max_len = max([x.shape[1] for x in all_start_logits])  # Get the max_length of the tensor
-
-    # # concatenate the numpy array
-    # start_logits_concat = create_and_fill_np_array(all_start_logits, test_dataset, max_len)
-    # end_logits_concat = create_and_fill_np_array(all_end_logits, test_dataset, max_len)
-
-    # # delete the list of numpy arrays
-    # del all_start_logits
-    # del all_end_logits
-
-    # outputs_numpy = (start_logits_concat, end_logits_concat)
-    # prediction = post_processing_function(test_examples, test_dataset, outputs_numpy)
-    # eval_metric = metric.compute(predictions=prediction.predictions, references=prediction.label_ids)
-    # logger.info(f"Evaluation metrics: {eval_metric}")
 
     # Prediction
     if args.do_predict:
@@ -860,34 +681,6 @@ def main():
 
         outputs_numpy = (start_logits_concat, end_logits_concat)
         prediction = post_processing_function(predict_examples, predict_dataset, outputs_numpy)
-        # predict_metric = metric.compute(predictions=prediction.predictions, references=prediction.label_ids)
-        # logger.info(f"Predict metrics: {predict_metric}")
-
-    # if args.with_tracking:
-    #     log = {
-    #         "squad_v2" if args.version_2_with_negative else "squad": eval_metric,
-    #         "train_loss": total_loss.item() / len(train_dataloader),
-    #         "epoch": epoch,
-    #         "step": completed_steps,
-    #     }
-    # if args.do_predict:
-    #     log["squad_v2_predict" if args.version_2_with_negative else "squad_predict"] = predict_metric
-
-    #     accelerator.log(log, step=completed_steps)
-
-    # if args.output_dir is not None:
-    #     accelerator.wait_for_everyone()
-    #     unwrapped_model = accelerator.unwrap_model(model)
-    #     unwrapped_model.save_pretrained(
-    #         args.output_dir, is_main_process=accelerator.is_main_process, save_function=accelerator.save
-    #     )
-    #     if accelerator.is_main_process:
-    #         tokenizer.save_pretrained(args.output_dir)
-    #         if args.push_to_hub:
-    #             repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
-
-            # logger.info(json.dumps(eval_metric, indent=4, ensure_ascii=False))
-            # save_prefixed_metrics(eval_metric, args.output_dir)
 
 
 if __name__ == "__main__":
